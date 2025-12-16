@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from scandeavour.ingestor_base import BaseIngestor
+from netdeavour.ingestor_base import BaseIngestor
 import sys
 import os
 import xml.etree.ElementTree as ET

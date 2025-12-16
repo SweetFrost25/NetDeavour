@@ -2,12 +2,12 @@ from dash import html, dcc, callback, Input, Output, State, register_page, get_a
 from dash.exceptions import PreventUpdate
 import dash_ag_grid as dag
 import dash_bootstrap_components as dbc
-from scandeavour.components.customToast import CustomToast
-from scandeavour.ingestors import *
-from scandeavour.ingestor_base import BaseIngestor
+from netdeavour.components.customToast import CustomToast
+from netdeavour.ingestors import *
+from netdeavour.ingestor_base import BaseIngestor
 import sys
 import inspect
-from scandeavour.utils import getDB, IPtoNum, NumToIP, getHostLabel
+from netdeavour.utils import getDB, IPtoNum, NumToIP, getHostLabel
 from base64 import b64decode
 from os import path, remove, stat
 import tempfile
@@ -18,7 +18,7 @@ register_page(__name__, path='/')
 def layout(**kwargs):
 
 	available_ingestors = []
-	ingestor_modules = inspect.getmembers(sys.modules['scandeavour.ingestors'], inspect.ismodule)
+	ingestor_modules = inspect.getmembers(sys.modules['netdeavour.ingestors'], inspect.ismodule)
 	for ingestor_module in ingestor_modules:
 		mod_name, mod = ingestor_module
 		ingestor_classes = inspect.getmembers(mod, inspect.isclass)
@@ -179,7 +179,7 @@ def _cb_fileUpload(set_progress, file_contents, file_names, toasts):
 	# Load ingestors
 	available_ingestors = []
 	try:
-		ingestor_modules = inspect.getmembers(sys.modules['scandeavour.ingestors'], inspect.ismodule)
+		ingestor_modules = inspect.getmembers(sys.modules['netdeavour.ingestors'], inspect.ismodule)
 		for ingestor_module in ingestor_modules:
 			mod_name, mod = ingestor_module
 			ingestor_classes = inspect.getmembers(mod, inspect.isclass)

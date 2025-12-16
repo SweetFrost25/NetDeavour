@@ -2,8 +2,8 @@ __version__ = "1.3.2"
 
 from dash import Dash, html, dcc, get_asset_url, page_container, DiskcacheManager, clientside_callback, Input, Output, State
 import dash_bootstrap_components as dbc
-from scandeavour.utils import initDB, TagRibbons, set_current_db
-from scandeavour.auth import init_auth_db, get_user_by_id
+from netdeavour.utils import initDB, TagRibbons, set_current_db
+from netdeavour.auth import init_auth_db, get_user_by_id
 import diskcache # for background callbacks: https://dash.plotly.com/background-callbacks
 from flask import Flask, request, session
 import uuid
@@ -14,7 +14,7 @@ import argparse
 
 cyto.load_extra_layouts()
 server = Flask(__name__)
-server.secret_key = environ.get("SCANDEAOUR_SECRET_KEY", "scandeavour-dev-secret-change-me")
+server.secret_key = environ.get("SCANDEAOUR_SECRET_KEY", "netdeavour-dev-secret-change-me")
 
 
 @server.before_request
@@ -59,7 +59,7 @@ def upload_file_api():
 def DashApp(server):
 
 	# Background manager required for the file upload task
-	cache = diskcache.Cache(path.join(tempfile.gettempdir(),'scandeavour.cache'))
+	cache = diskcache.Cache(path.join(tempfile.gettempdir(),'netdeavour.cache'))
 	background_callback_manager = DiskcacheManager(cache)
 
 	app = Dash(
@@ -229,7 +229,7 @@ def DashApp(server):
 		])
 
 	# Callback для обробки логіну
-	from scandeavour.auth import authenticate
+	from netdeavour.auth import authenticate
 	from dash.exceptions import PreventUpdate
 	
 	# Callback для оновлення layout після успішного логіну
@@ -570,9 +570,10 @@ def main():
 		prevent_initial_call=True
 	)
 
-	# DO NOT EXPOSE THIS APPLICATION TO ANYTHING OTHER THAN LOCALHOST
+	# WARNING: Exposing to local network. Make sure you trust all users on your network.
+	# The application includes authentication, but should still be used only in trusted networks.
 	app.run(
-		host='127.0.0.1',
+		host='0.0.0.0',  # Listen on all network interfaces (accessible from local network)
 		port=args.port,
 		debug=args.debug,
 		use_reloader=False, # using this option can lead to unexpected behaviour (calls being executed twice etc.)

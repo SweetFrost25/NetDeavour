@@ -6,7 +6,7 @@ import dash_ag_grid as dag
 from datetime import datetime
 import dash
 
-from scandeavour.auth import get_user_by_id, get_all_users, create_user_by_admin, delete_user, toggle_user_block
+from netdeavour.auth import get_user_by_id, get_all_users, create_user_by_admin, delete_user, toggle_user_block
 
 
 register_page(__name__, path="/account")

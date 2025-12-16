@@ -3,8 +3,8 @@ from dash.exceptions import PreventUpdate
 import plotly.graph_objects as go
 import dash_ag_grid as dag
 import dash_bootstrap_components as dbc
-from scandeavour.utils import getDB
-from scandeavour.components.customToast import CustomToast
+from netdeavour.utils import getDB
+from netdeavour.components.customToast import CustomToast
 
 register_page(__name__, path='/stats')
 

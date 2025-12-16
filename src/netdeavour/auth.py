@@ -4,7 +4,7 @@ from os import path, makedirs, getcwd
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from scandeavour.utils import initDB, set_current_db
+from netdeavour.utils import initDB, set_current_db
 
 
 AUTH_DB_PATH = path.join(path.dirname(path.abspath(__file__)), "auth.sqlite")

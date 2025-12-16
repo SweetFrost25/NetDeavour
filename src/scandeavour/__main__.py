@@ -1,10 +1,11 @@
 __version__ = "1.3.2"
 
-from dash import Dash, html, get_asset_url, page_container, DiskcacheManager, clientside_callback, Input, Output, State
+from dash import Dash, html, dcc, get_asset_url, page_container, DiskcacheManager, clientside_callback, Input, Output, State
 import dash_bootstrap_components as dbc
-from scandeavour.utils import initDB, TagRibbons
+from scandeavour.utils import initDB, TagRibbons, set_current_db
+from scandeavour.auth import init_auth_db, get_user_by_id
 import diskcache # for background callbacks: https://dash.plotly.com/background-callbacks
-from flask import Flask, request
+from flask import Flask, request, session
 import uuid
 import tempfile
 from os import path, environ
@@ -13,6 +14,27 @@ import argparse
 
 cyto.load_extra_layouts()
 server = Flask(__name__)
+server.secret_key = environ.get("SCANDEAOUR_SECRET_KEY", "scandeavour-dev-secret-change-me")
+
+
+@server.before_request
+def _load_user_and_db():
+	"""
+	Перед кожним запитом встановлюємо поточну БД:
+	- якщо користувач залогінений: його персональна БД
+	- інакше: дефолтна з аргумента командного рядка (SQLITE_PROJECT_FILE)
+	"""
+	user_id = session.get("user_id")
+	if user_id is not None:
+		user = get_user_by_id(user_id)
+		if user is not None:
+			set_current_db(user["db_path"])
+			return
+
+	# fallback: дефолтна БД з CLI-параметра
+	default_db = environ.get("SQLITE_PROJECT_FILE")
+	if default_db:
+		set_current_db(default_db)
 
 @server.route('/upload-file', methods=['POST'])
 def upload_file_api():
@@ -56,61 +78,74 @@ def DashApp(server):
 		background_callback_manager = background_callback_manager, # use for background callbacks
 	)
 
-	sidebar = html.Div(
-		[
-			html.Img(src=get_asset_url('icons/hexagon.svg'), className="nav-logo"),
-			html.Hr(),
-			dbc.Nav(
+	# Sidebar буде динамічним, залежно від того, чи користувач залогінений
+	def get_sidebar():
+		nav_items = [
+			dbc.NavLink(
 				[
-					dbc.NavLink(
-						[
-							html.Img(src=get_asset_url('icons/import.svg')),
-							html.Span("Import Scan")
-						],
-						href="/",
-						active="exact"
-					),
-					dbc.NavLink(
-						[
-							html.Img(src=get_asset_url('icons/graph.svg')),
-							html.Span("View Graph")
-						],
-						href="/graph",
-						active="exact"
-					),
-					dbc.NavLink(
-						[
-							html.Img(src=get_asset_url('icons/stats.svg')),
-							html.Span("View Data")
-						],
-						href="/data",
-						active="exact"
-					),
-					dbc.NavLink(
-						[
-							html.Img(src=get_asset_url('icons/pie-chart.svg')),
-							html.Span("View Statistics")
-						],
-						href="/stats",
-						active="exact"
-					),
+					html.Img(src=get_asset_url('icons/import.svg')),
+					html.Span("Import Scan")
 				],
-				vertical=True,
-				pills=True
+				href="/",
+				active="exact"
 			),
-			html.Span(f'v{__version__}', className='nav-version')
-
-		],
-		id='div-sidebar',
-		className="sidebar"
-	)
+			dbc.NavLink(
+				[
+					html.Img(src=get_asset_url('icons/headings/listitem.svg')),
+					html.Span("My Account")
+				],
+				href="/account",
+				active="exact"
+			),
+			dbc.NavLink(
+				[
+					html.Img(src=get_asset_url('icons/graph.svg')),
+					html.Span("View Graph")
+				],
+				href="/graph",
+				active="exact"
+			),
+			dbc.NavLink(
+				[
+					html.Img(src=get_asset_url('icons/stats.svg')),
+					html.Span("View Data")
+				],
+				href="/data",
+				active="exact"
+			),
+			dbc.NavLink(
+				[
+					html.Img(src=get_asset_url('icons/pie-chart.svg')),
+					html.Span("View Statistics")
+				],
+				href="/stats",
+				active="exact"
+			),
+		]
+		
+		return html.Div(
+			[
+				html.Img(src=get_asset_url('icons/hexagon.svg'), className="nav-logo"),
+				html.Hr(),
+				dbc.Nav(
+					nav_items,
+					vertical=True,
+					pills=True
+				),
+				html.Span(f'v{__version__}', className='nav-version')
+			],
+			id='div-sidebar',
+			className="sidebar"
+		)
+	
+	sidebar = get_sidebar()
 
 	content = html.Div(
-		[
-			page_container
-		],
-		id='div-content',
-		className='content',
+	[
+		page_container
+	],
+	id='div-content',
+	className='content',
 	)
 
 	toasts = dbc.Container(
@@ -119,11 +154,152 @@ def DashApp(server):
 		class_name='toaster'
 	)
 
+	def login_layout():
+		"""
+		Мінімальний layout форми логіну для незалогінених користувачів.
+		"""
+		return html.Div(
+			[
+				# login-redirect вже є в глобальному layout, не створюємо дублікат
+				html.Div(
+					[
+						html.H2("Sign in to NetDeavour", className="login-title"),
+						html.Div(
+							[
+								dbc.Label("Username", html_for="login-username", class_name="login-label"),
+								dcc.Input(
+									id="login-username",
+									type="text",
+									debounce=True,
+									className="login-input",
+								),
+								dbc.Label("Password", html_for="login-password", class_name="login-label mt-3"),
+								dcc.Input(
+									id="login-password",
+									type="password",
+									className="login-input",
+								),
+								html.Div(
+									[
+										dbc.Button(
+											"Login",
+											id="btn-login",
+											color="primary",
+											class_name="mt-3",
+											n_clicks=0,
+										),
+									],
+									className="login-actions",
+								),
+								html.Div(id="login-message", className="login-message mt-3"),
+							],
+							className="login-card",
+						),
+					],
+					className="login-container",
+				),
+			]
+		)
+
 	app.layout = html.Div([
-		sidebar,
-		content,
-		toasts,
+		dcc.Location(id='url', refresh=False),
+		dcc.Location(id='login-redirect', refresh=True),  # Завжди присутній для callback
+		html.Div(id='app-container')
 	])
+
+	@app.callback(
+		Output('app-container', 'children'),
+		Input('url', 'pathname'),
+		prevent_initial_call=False,
+	)
+	def _render_layout(pathname):
+		"""
+		Рендеримо або тільки сторінку логіну, або повний інтерфейс,
+		залежно від того, чи користувач залогінений.
+		"""
+		if not session.get("user_id"):
+			# Показуємо лише форму логіну незалежно від URL
+			return login_layout()
+
+		# Залогінений користувач бачить повний інтерфейс
+		return html.Div([
+			get_sidebar(),
+			content,
+			toasts,
+		])
+
+	# Callback для обробки логіну
+	from scandeavour.auth import authenticate
+	from dash.exceptions import PreventUpdate
+	
+	# Callback для оновлення layout після успішного логіну
+	from dash import no_update
+	
+	@app.callback(
+		Output("login-redirect", "pathname", allow_duplicate=True),
+		Output("app-container", "children", allow_duplicate=True),
+		Input("btn-login", "n_clicks"),
+		State("login-username", "value"),
+		State("login-password", "value"),
+		prevent_initial_call=True,
+	)
+	def handle_login_redirect(btn_login, username, password):
+		# Перевіряємо, чи користувач вже не залогінений
+		if session.get("user_id"):
+			raise PreventUpdate()
+		
+		# Перевіряємо, чи була натиснута кнопка
+		if not btn_login or btn_login == 0:
+			raise PreventUpdate()
+		
+		if not username or not password:
+			raise PreventUpdate()
+
+		ok, user = authenticate(username.strip(), password)
+		if not ok:
+			raise PreventUpdate()
+
+		session["user_id"] = user["id"]
+		session["username"] = user["username"]
+		session["db_path"] = user["db_path"]
+		session["is_admin"] = user.get("is_admin", False)
+		
+		# Повертаємо повний інтерфейс одразу
+		full_layout = html.Div([
+			get_sidebar(),
+			content,
+			toasts,
+		])
+		
+		# Використовуємо редирект через dcc.Location для оновлення URL
+		return "/", full_layout
+	
+	# Callback для оновлення повідомлення про помилку (тільки коли форма логіну видима)
+	@app.callback(
+		Output("login-message", "children", allow_duplicate=True),
+		Input("btn-login", "n_clicks"),
+		State("login-username", "value"),
+		State("login-password", "value"),
+		prevent_initial_call=True,
+	)
+	def handle_login_message(btn_login, username, password):
+		# Перевіряємо, чи користувач вже не залогінений
+		if session.get("user_id"):
+			raise PreventUpdate()
+		
+		# Перевіряємо, чи була натиснута кнопка
+		if not btn_login or btn_login == 0:
+			raise PreventUpdate()
+		
+		if not username or not password:
+			return "Please provide username and password."
+
+		ok, user = authenticate(username.strip(), password)
+		if not ok:
+			return "Invalid credentials or user is blocked."
+		
+		# Якщо успішно - повідомлення очищається, layout оновлюється через інший callback
+		return ""
 
 	return app
 
@@ -142,9 +318,12 @@ def main():
 		print(f'v{__version__}')
 		exit(0)
 
+	# Задаємо дефолтну БД (використовується для гостьового режиму і fallback)
 	environ['SQLITE_PROJECT_FILE'] = args.projectfile
 
 	print(f'[+] Version: {__version__}')
+	# Ініціалізуємо auth-базу та дефолтну БД
+	init_auth_db()
 	initDB()
 	app = DashApp(server)
 

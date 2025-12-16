@@ -1,6 +1,25 @@
 import sqlite3
 import re
-from os import path,getenv
+import contextvars
+from os import path, getenv
+
+
+_current_db_path = contextvars.ContextVar("SCAND__current_db_path", default=None)
+
+
+def set_current_db(db_path: str):
+    """
+    Встановлює шлях до БД для поточного запиту/контексту.
+    """
+    _current_db_path.set(db_path)
+
+
+def get_current_db() -> str:
+    """
+    Повертає шлях до БД для поточного запиту/контексту.
+    Якщо контексту немає, використовує змінну середовища SQLITE_PROJECT_FILE.
+    """
+    return _current_db_path.get() or getenv("SQLITE_PROJECT_FILE")
 
 def getOS(family, name):
 	name=name.lower()
@@ -30,7 +49,8 @@ def getOS(family, name):
 	return os
 
 def getDB(autocommit=False):
-	db_con = sqlite3.connect(getenv('SQLITE_PROJECT_FILE'), autocommit=autocommit)
+	db_path = get_current_db()
+	db_con = sqlite3.connect(db_path, autocommit=autocommit)
 	db = db_con.cursor()
 	return (db_con, db)
 

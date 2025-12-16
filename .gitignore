@@ -20,4 +20,7 @@ share/python-wheels/
 *.egg
 *.pyc
 *.swp
+*.db
+*.sqlite
 venv/
+.idea
